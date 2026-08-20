@@ -1,0 +1,41 @@
+name: Build & Package WordPress Plugin
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate PHP Syntax
+        run: |
+          find arvan-store -type f -name "*.php" -exec php -l {} \;
+
+      - name: Create WordPress Plugin Zip
+        run: |
+          mkdir -p build
+          zip -r build/arvan-store.zip arvan-store -x "*.git*" "*.DS_Store*"
+
+      - name: Upload Plugin Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arvan-store-plugin
+          path: build/arvan-store.zip
+          retention-days: 30
+
+      - name: Create Release and Upload Asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/arvan-store.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

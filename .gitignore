@@ -1,0 +1,15 @@
+﻿# Local development & media
+*.mp4
+*.mov
+*.avi
+*.log
+.DS_Store
+Thumbs.db
+test-zip/
+node_modules/
+vendor/
+
+# WordPress & Local Database
+docker-compose.override.yml
+.env
+wp-content/
