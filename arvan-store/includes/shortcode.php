@@ -27,6 +27,28 @@ function arvan_store_enqueue_scripts() {
             'nonce' => wp_create_nonce('wp_rest'),
             'is_logged_in' => is_user_logged_in() ? 1 : 0
         ));
+
+        // Inject Theme Isolation & Width Override CSS
+        $custom_css = "
+            .entry-content, .wp-block-post-content, .wp-site-blocks, .alignwide, .alignfull {
+                max-width: 100% !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            #arvan-store-app {
+                font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, Tahoma, sans-serif !important;
+                width: 100% !important;
+                max-width: 1150px !important;
+                margin: 20px auto !important;
+                direction: rtl !important;
+                text-align: right !important;
+            }
+            #arvan-store-app * {
+                box-sizing: border-box !important;
+                font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, Tahoma, sans-serif !important;
+            }
+        ";
+        wp_add_inline_style('vazirmatn-font', $custom_css);
     }
 }
 add_action('wp_enqueue_scripts', 'arvan_store_enqueue_scripts');
@@ -40,7 +62,7 @@ function arvan_store_shortcode($atts) {
     ?>
     <div id="arvan-store-app" data-view="<?php echo esc_attr($atts['type']); ?>">
         <!-- Vue App Mount Point -->
-        <div style="text-align: center; padding: 40px; font-family: Tahoma, sans-serif; color: #64748b;">
+        <div style="text-align: center; padding: 60px 20px; font-family: Tahoma, sans-serif; color: #64748b;">
             <p>⏳ در حال بارگذاری فروشگاه ابری آروان‌کلاد...</p>
         </div>
     </div>
@@ -50,7 +72,21 @@ function arvan_store_shortcode($atts) {
 add_shortcode('arvan_store', 'arvan_store_shortcode');
 
 function arvan_store_template_redirect() {
-    if (isset($_GET['standalone']) && $_GET['standalone'] == '1') {
+    $is_store_page = is_page(array('arvan-store', 'arvan-wallet', 'arvan-cloud-server', 'arvan-cdn', 'arvan-storage'));
+    $is_standalone = isset($_GET['standalone']) && $_GET['standalone'] == '1';
+
+    // When visiting store pages directly or ?standalone=1, render the ultra-clean Sorkhab canvas
+    if ($is_standalone || ($is_store_page && !isset($_GET['embed']))) {
+        global $post;
+        $view_type = 'cloud_server';
+        if ($post) {
+            if ($post->post_name === 'arvan-wallet') $view_type = 'wallet';
+            elseif ($post->post_name === 'arvan-cdn') $view_type = 'cdn';
+            elseif ($post->post_name === 'arvan-storage') $view_type = 'object_storage';
+        }
+        if (isset($_GET['view'])) {
+            $view_type = sanitize_text_field($_GET['view']);
+        }
         ?>
         <!DOCTYPE html>
         <html lang="fa" dir="rtl" class="h-full bg-slate-100">
@@ -81,7 +117,7 @@ function arvan_store_template_redirect() {
             </style>
         </head>
         <body class="bg-slate-100 min-h-screen p-0 sm:p-4 md:p-8">
-            <div id="arvan-store-app" data-view="<?php echo esc_attr($_GET['view'] ?? 'cloud_server'); ?>">
+            <div id="arvan-store-app" data-view="<?php echo esc_attr($view_type); ?>">
                 <div style="text-align: center; padding: 60px 20px; color: #64748b; font-size: 14px;">
                     ⏳ در حال بارگذاری دیزاین‌سیستم سرخاب آروان‌کلاد...
                 </div>
@@ -101,6 +137,7 @@ function arvan_store_template_redirect() {
     }
 }
 add_action('template_redirect', 'arvan_store_template_redirect');
+
 
 
 
