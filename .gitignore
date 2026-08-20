@@ -1,11 +1,14 @@
-﻿# Local development & media
+﻿# Media & Recordings
+recordings/
+*.webm
 *.mp4
 *.mov
 *.avi
+*.mp3
+*.wav
 *.log
 .DS_Store
 Thumbs.db
-test-zip/
 node_modules/
 vendor/
 
