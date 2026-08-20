@@ -31,6 +31,15 @@ add_action('rest_api_init', function () {
         }
     ));
 
+    // Wallet Transactions Ledger endpoint
+    register_rest_route('arvan-store/v1', '/wallet/transactions', array(
+        'methods' => 'GET',
+        'callback' => 'arvan_store_get_transactions',
+        'permission_callback' => function () {
+            return is_user_logged_in();
+        }
+    ));
+
     // Get Customer Services endpoint
     register_rest_route('arvan-store/v1', '/services', array(
         'methods' => 'GET',
@@ -83,18 +92,29 @@ function arvan_store_charge_wallet(WP_REST_Request $request) {
         return new WP_Error('invalid_amount', 'مبلغ شارژ باید بیشتر از صفر باشد.', array('status' => 400));
     }
     
+    global $wpdb;
     $user_id = get_current_user_id();
     $current_balance = floatval(get_user_meta($user_id, 'arvan_wallet_balance', true) ?: 0);
     
     $new_balance = $current_balance + $amount;
     update_user_meta($user_id, 'arvan_wallet_balance', $new_balance);
 
+    // Record in Custom Transactions Ledger Table
+    $trans_table = $wpdb->prefix . 'arvan_transactions';
+    $wpdb->insert($trans_table, array(
+        'user_id'     => $user_id,
+        'amount'      => $amount,
+        'type'        => 'charge',
+        'status'      => 'success',
+        'description' => 'شارژ آنلاین کیف پول مجازی (پیش‌پرداخت)',
+        'created_at'  => current_time('mysql')
+    ));
+
     // If user had suspended services due to debt, reactivate them now if balance is positive
     if ($new_balance > 0) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'arvan_services';
+        $services_table = $wpdb->prefix . 'arvan_services';
         $wpdb->update(
-            $table_name,
+            $services_table,
             array('status' => 'active', 'negative_since' => null),
             array('user_id' => $user_id, 'status' => 'suspended')
         );
@@ -106,6 +126,23 @@ function arvan_store_charge_wallet(WP_REST_Request $request) {
         'new_balance' => $new_balance
     ]);
 }
+
+function arvan_store_get_transactions(WP_REST_Request $request) {
+    global $wpdb;
+    $user_id = get_current_user_id();
+    $trans_table = $wpdb->prefix . 'arvan_transactions';
+
+    $transactions = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $trans_table WHERE user_id = %d ORDER BY id DESC LIMIT 50",
+        $user_id
+    ));
+
+    return rest_ensure_response([
+        'success' => true,
+        'transactions' => $transactions ?: array()
+    ]);
+}
+
 
 function arvan_store_get_user_services(WP_REST_Request $request) {
     global $wpdb;

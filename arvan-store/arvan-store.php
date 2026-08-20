@@ -82,12 +82,12 @@ add_action('init', 'arvan_store_maybe_create_default_pages');
 register_activation_hook(__FILE__, 'arvan_store_activate');
 function arvan_store_activate() {
     global $wpdb;
-    
-    // Create services table
-    $table_name = $wpdb->prefix . 'arvan_services';
     $charset_collate = $wpdb->get_charset_collate();
-
-    $sql = "CREATE TABLE $table_name (
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    
+    // 1. Services Table
+    $services_table = $wpdb->prefix . 'arvan_services';
+    $sql1 = "CREATE TABLE $services_table (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         user_id bigint(20) NOT NULL,
         product_type varchar(50) NOT NULL,
@@ -99,13 +99,42 @@ function arvan_store_activate() {
         created_at datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY  (id)
     ) $charset_collate;";
+    dbDelta($sql1);
 
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
+    // 2. Transactions & Payments Ledger Table
+    $trans_table = $wpdb->prefix . 'arvan_transactions';
+    $sql2 = "CREATE TABLE $trans_table (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) NOT NULL,
+        amount decimal(12,2) NOT NULL,
+        type varchar(20) NOT NULL, -- charge, usage_deduction, refund
+        status varchar(20) DEFAULT 'success', -- success, pending, failed
+        description varchar(255) NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    dbDelta($sql2);
 
-    // Schedule cron
+    // 3. Hourly Consumption & Reseller Margin Log Table
+    $logs_table = $wpdb->prefix . 'arvan_usage_logs';
+    $sql3 = "CREATE TABLE $logs_table (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        service_id bigint(20) NOT NULL,
+        user_id bigint(20) NOT NULL,
+        base_price decimal(10,2) NOT NULL,
+        reseller_margin decimal(10,2) NOT NULL,
+        final_price decimal(10,2) NOT NULL,
+        recorded_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    dbDelta($sql3);
+
+    // Schedule hourly billing & daily settlement
     if (!wp_next_scheduled('arvan_hourly_billing_event')) {
         wp_schedule_event(time(), 'hourly', 'arvan_hourly_billing_event');
+    }
+    if (!wp_next_scheduled('arvan_daily_settlement_event')) {
+        wp_schedule_event(time(), 'daily', 'arvan_daily_settlement_event');
     }
 }
 
@@ -113,4 +142,6 @@ function arvan_store_activate() {
 register_deactivation_hook(__FILE__, 'arvan_store_deactivate');
 function arvan_store_deactivate() {
     wp_clear_scheduled_hook('arvan_hourly_billing_event');
+    wp_clear_scheduled_hook('arvan_daily_settlement_event');
 }
+

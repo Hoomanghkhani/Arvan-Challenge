@@ -28,6 +28,13 @@ add_action('admin_menu', 'arvan_store_admin_menu');
 function arvan_store_register_settings() {
     register_setting('arvan_store_settings_group', 'arvan_store_api_key', 'sanitize_text_field');
     register_setting('arvan_store_settings_group', 'arvan_store_access_token', 'sanitize_text_field');
+    register_setting('arvan_store_settings_group', 'arvan_store_reseller_margin', 'floatval');
+    register_setting('arvan_store_settings_group', 'arvan_store_threshold_warning', 'floatval');
+    register_setting('arvan_store_settings_group', 'arvan_store_company_name', 'sanitize_text_field');
+    register_setting('arvan_store_settings_group', 'arvan_store_company_logo', 'esc_url_raw');
+    register_setting('arvan_store_settings_group', 'arvan_store_company_phone', 'sanitize_text_field');
+    register_setting('arvan_store_settings_group', 'arvan_store_company_email', 'sanitize_email');
+    register_setting('arvan_store_settings_group', 'arvan_store_company_about', 'sanitize_textarea_field');
 }
 add_action('admin_init', 'arvan_store_register_settings');
 
@@ -36,9 +43,11 @@ function arvan_store_settings_page() {
     
     $token = get_option('arvan_store_access_token');
     $is_valid = arvan_store_is_token_valid($token);
+    $margin = get_option('arvan_store_reseller_margin', 15);
+    $threshold = get_option('arvan_store_threshold_warning', 5000);
     ?>
-    <div class="wrap" dir="rtl" style="font-family: Tahoma, sans-serif;">
-        <h1 style="margin-bottom: 20px; font-weight: bold; color: #1e293b;">تنظیمات پلاگین فروشگاه آروان‌کلاد</h1>
+    <div class="wrap" dir="rtl" style="font-family: 'Vazirmatn', Tahoma, sans-serif; max-width: 1000px; margin: 20px auto;">
+        <h1 style="margin-bottom: 20px; font-weight: 900; color: #0f172a;">⚙️ تنظیمات نمایندگی و اتصال آروان‌کلاد</h1>
         
         <?php if (!empty($token)): ?>
             <?php if ($is_valid): ?>
@@ -48,32 +57,80 @@ function arvan_store_settings_page() {
             <?php endif; ?>
         <?php endif; ?>
 
-        <div style="background: #fff; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="background: #fff; padding: 28px; border: 1px solid #e2e8f0; border-radius: 16px; margin-top: 20px; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.05);">
             <form method="post" action="options.php">
                 <?php settings_fields('arvan_store_settings_group'); ?>
+                
+                <h3 style="font-weight: 900; color: #FF0066; border-bottom: 2px solid #fce7f3; padding-bottom: 8px; margin-top: 0;">۱. احراز هویت و کلیدهای API اکانت مادر (Machine User)</h3>
                 <table class="form-table" role="presentation">
                     <tbody>
                         <tr>
                             <th scope="row"><label for="arvan_store_api_key"><strong>کلید API آروان‌کلاد (User API Key)</strong></label></th>
                             <td>
-                                <input type="password" name="arvan_store_api_key" id="arvan_store_api_key" value="<?php echo esc_attr(get_option('arvan_store_api_key')); ?>" class="regular-text" dir="ltr" style="border-radius: 6px; padding: 8px;" />
+                                <input type="password" name="arvan_store_api_key" id="arvan_store_api_key" value="<?php echo esc_attr(get_option('arvan_store_api_key')); ?>" class="regular-text" dir="ltr" style="border-radius: 8px; padding: 8px;" />
                                 <p class="description">برای ایجاد و ارتباط مستقیم با API سرور ابری، CDN و فضای ابری آروان کلاد.</p>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="arvan_store_access_token"><strong>توکن دسترسی نماینده (Access Token)</strong></label></th>
                             <td>
-                                <input type="password" name="arvan_store_access_token" id="arvan_store_access_token" value="<?php echo esc_attr(get_option('arvan_store_access_token')); ?>" class="regular-text" dir="ltr" style="border-radius: 6px; padding: 8px;" />
+                                <input type="password" name="arvan_store_access_token" id="arvan_store_access_token" value="<?php echo esc_attr(get_option('arvan_store_access_token')); ?>" class="regular-text" dir="ltr" style="border-radius: 8px; padding: 8px;" />
                                 <p class="description">توکن امنیتی برای تایید اعتبار ماژول فروشگاهی (برای حالت آزمایشی مقدار <code>demo-token-123</code> مجاز است).</p>
                             </td>
                         </tr>
                     </tbody>
                 </table>
-                <?php submit_button('ذخیره تغییرات'); ?>
+
+                <h3 style="font-weight: 900; color: #FF0066; border-bottom: 2px solid #fce7f3; padding-bottom: 8px; margin-top: 24px;">۲. تنظیمات مالی و فرمول سهم ریسلر (Reseller Margin)</h3>
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_reseller_margin"><strong>درصد سهم ریسلر (Reseller Margin %)</strong></label></th>
+                            <td>
+                                <input type="number" min="0" max="20" step="0.5" name="arvan_store_reseller_margin" id="arvan_store_reseller_margin" value="<?php echo esc_attr($margin); ?>" style="width: 100px; border-radius: 8px; padding: 8px;" />
+                                <span>درصد (حداکثر ۲۰٪ طبق آیین‌نامه آروان)</span>
+                                <p class="description">این درصد سود به قیمت پایه آروان اضافه و در کسر هزینه ساعتی به عنوان سهم ریسلر محاسبه می‌شود.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_threshold_warning"><strong>آستانه هشدار کاهش موجودی (تومان)</strong></label></th>
+                            <td>
+                                <input type="number" step="1000" name="arvan_store_threshold_warning" id="arvan_store_threshold_warning" value="<?php echo esc_attr($threshold); ?>" style="width: 160px; border-radius: 8px; padding: 8px;" />
+                                <p class="description">هنگامی که موجودی کاربر به این رقم برسد، ایمیل هشدار شارژ خودکار برای جلوگیری از قطع سرویس ارسال می‌گردد.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 style="font-weight: 900; color: #FF0066; border-bottom: 2px solid #fce7f3; padding-bottom: 8px; margin-top: 24px;">۳. اطلاعات پایه مجموعه ریسلر (Branding & Identity)</h3>
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_company_name">نام مجموعه ریسلر:</label></th>
+                            <td><input type="text" name="arvan_store_company_name" id="arvan_store_company_name" value="<?php echo esc_attr(get_option('arvan_store_company_name', 'نمایندگی رسمی خدمات ابری آروان')); ?>" class="regular-text" style="border-radius: 8px; padding: 8px;" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_company_phone">تلفن پشتیبانی و تماس:</label></th>
+                            <td><input type="text" name="arvan_store_company_phone" id="arvan_store_company_phone" value="<?php echo esc_attr(get_option('arvan_store_company_phone', '۰۲۱-۸۸۸۸۸۸۸۸')); ?>" class="regular-text" dir="ltr" style="border-radius: 8px; padding: 8px;" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_company_email">ایمیل رسمی پشتیبانی:</label></th>
+                            <td><input type="email" name="arvan_store_company_email" id="arvan_store_company_email" value="<?php echo esc_attr(get_option('arvan_store_company_email', get_option('admin_email'))); ?>" class="regular-text" dir="ltr" style="border-radius: 8px; padding: 8px;" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="arvan_store_company_about">درباره مجموعه و خدمات:</label></th>
+                            <td><textarea name="arvan_store_company_about" id="arvan_store_company_about" rows="3" class="large-text" style="border-radius: 8px; padding: 8px;"><?php echo esc_textarea(get_option('arvan_store_company_about', 'ارائه‌دهنده راهکارهای نوین ابری، سرورهای پایدار ابری و شتاب‌دهی محتوا بر بستر زیرساخت آروان‌کلاد')); ?></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 20px;">
+                    <?php submit_button('💾 ذخیره تمامی تنظیمات ریسلر'); ?>
+                </div>
             </form>
         </div>
         
-        <div style="margin-top: 24px; background: #f0fdf4; border: 1px solid #bbf7d0; border-right: 4px solid #10b981; padding: 18px; border-radius: 10px;">
+        <div style="margin-top: 24px; background: #f0fdf4; border: 1px solid #bbf7d0; border-right: 4px solid #10b981; padding: 18px; border-radius: 14px;">
             <strong style="color: #166534; font-size: 14px;">🔗 برگه‌های پیش‌ساخته فروشگاه:</strong><br>
             <p style="color: #14532d; font-size: 13px; margin: 6px 0 10px 0;">برگه‌ها به صورت خودکار ایجاد شده‌اند. می‌توانید مستقیماً از لینک‌های زیر بازدید نمایید:</p>
             <ul style="list-style-type: disc; margin-right: 20px; line-height: 1.8;">
@@ -87,6 +144,7 @@ function arvan_store_settings_page() {
     </div>
     <?php
 }
+
 
 function arvan_store_admin_dashboard() {
     if (!current_user_can('manage_options')) return;
@@ -148,7 +206,13 @@ function arvan_store_admin_dashboard() {
     $suspended_orders = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'suspended'") ?: 0;
     $total_hourly_revenue = $wpdb->get_var("SELECT SUM(hourly_price) FROM $table_name WHERE status = 'active'") ?: 0;
 
+    $reseller_margin_percent = min(20, max(0, floatval(get_option('arvan_store_reseller_margin', 15))));
+    $reseller_hourly_profit = ($total_hourly_revenue * $reseller_margin_percent) / 100;
+    
     $services = $wpdb->get_results("SELECT * FROM $table_name ORDER BY id DESC LIMIT 50");
+    $trans_table = $wpdb->prefix . 'arvan_transactions';
+    $transactions = $wpdb->get_results("SELECT * FROM $trans_table ORDER BY id DESC LIMIT 20");
+    $last_settlement = get_option('arvan_last_settlement_data');
     ?>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap">
     <div class="wrap" dir="rtl" style="font-family: 'Vazirmatn', Tahoma, sans-serif; max-width: 1200px; margin: 20px auto 40px auto;">
@@ -157,13 +221,13 @@ function arvan_store_admin_dashboard() {
         <div style="background: linear-gradient(135deg, #FF0066 0%, #E11D48 40%, #7928CA 100%); padding: 28px 32px; border-radius: 20px; color: #ffffff; box-shadow: 0 10px 25px -5px rgba(255, 0, 102, 0.25); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 25px;">
             <div>
                 <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 900; letter-spacing: 0.5px; margin-bottom: 8px;">
-                    🎨 SORKHAB DESIGN SYSTEM
+                    🎨 SORKHAB DESIGN SYSTEM | سهم ریسلر: <?php echo esc_html($reseller_margin_percent); ?>٪
                 </div>
                 <h1 style="font-weight: 900; color: #ffffff; margin: 0; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     پیشخوان مدیریت فروش و نمایندگی آروان‌کلاد
                 </h1>
                 <p style="color: rgba(255, 255, 255, 0.85); margin: 6px 0 0 0; font-size: 13px;">
-                    مانیتورینگ لحظه‌ای، کنترل عملیاتی سرویس‌ها (خاموش/روشن/ری‌استارت/حذف) و چرخه کسر هزینه ساعتی
+                    مانیتورینگ لحظه‌ای، کنترل عملیاتی سرویس‌ها، سهم سود ریسلر و تسویه خودکار با آروان
                 </p>
             </div>
 
@@ -188,7 +252,7 @@ function arvan_store_admin_dashboard() {
 
         <!-- Sorkhab KPI Metrics Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 25px;">
-            <div style="background: #ffffff; padding: 22px; border-radius: 18px; border: 1px solid #f1f5f9; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+            <div style="background: #ffffff; padding: 22px; border-radius: 18px; border: 1px solid #f1f5f9; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.04);">
                 <div style="color: #64748b; font-size: 12px; font-weight: 700;">کل سرویس‌های ایجاد شده</div>
                 <div style="font-size: 28px; font-weight: 900; color: #0f172a; margin-top: 6px;"><?php echo number_format($total_orders); ?></div>
                 <div style="margin-top: 6px; font-size: 11px; color: #94a3b8;">در ۳ محصول سرور ابری، CDN و S3</div>
@@ -204,9 +268,9 @@ function arvan_store_admin_dashboard() {
                 <div style="margin-top: 6px; font-size: 11px; color: #b45309;">🟡 خاموش شده به علت اتمام شارژ</div>
             </div>
             <div style="background: #ffffff; padding: 22px; border-radius: 18px; border: 1px solid #f1f5f9; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.04); border-right: 4px solid #FF0066;">
-                <div style="color: #64748b; font-size: 12px; font-weight: 700;">درآمد ساعتی فعال (Pay-as-You-Go)</div>
-                <div style="font-size: 28px; font-weight: 900; color: #FF0066; margin-top: 6px;"><?php echo number_format($total_hourly_revenue); ?> <span style="font-size: 12px; font-weight: normal; color: #64748b;">تومان/ساعت</span></div>
-                <div style="margin-top: 6px; font-size: 11px; color: #e11d48; font-weight: 700;">~<?php echo number_format($total_hourly_revenue * 720); ?> تومان / ماه</div>
+                <div style="color: #64748b; font-size: 12px; font-weight: 700;">سهم سود ساعتی ریسلر (<?php echo esc_html($reseller_margin_percent); ?>٪)</div>
+                <div style="font-size: 28px; font-weight: 900; color: #FF0066; margin-top: 6px;"><?php echo number_format($reseller_hourly_profit); ?> <span style="font-size: 12px; font-weight: normal; color: #64748b;">تومان/ساعت</span></div>
+                <div style="margin-top: 6px; font-size: 11px; color: #e11d48; font-weight: 700;">کل فاکتور ساعتی: <?php echo number_format($total_hourly_revenue + $reseller_hourly_profit); ?> ت</div>
             </div>
         </div>
 
@@ -233,7 +297,7 @@ function arvan_store_admin_dashboard() {
         </div>
 
         <!-- Sorkhab Resource Table -->
-        <div style="background: #ffffff; border-radius: 20px; border: 1px solid #f1f5f9; overflow: hidden; box-shadow: 0 4px 20px -3px rgba(0,0,0,0.05);">
+        <div style="background: #ffffff; border-radius: 20px; border: 1px solid #f1f5f9; overflow: hidden; box-shadow: 0 4px 20px -3px rgba(0,0,0,0.05); margin-bottom: 25px;">
             <div style="padding: 18px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div>
                     <h3 style="font-weight: 900; font-size: 15px; color: #0f172a; margin: 0;">لیست سفارشات و کنترل عملیاتی منابع</h3>
@@ -353,9 +417,75 @@ function arvan_store_admin_dashboard() {
                 </table>
             </div>
         </div>
+
+        <!-- Sorkhab Financial Ledger & Transactions Table -->
+        <div style="background: #ffffff; border-radius: 20px; border: 1px solid #f1f5f9; overflow: hidden; box-shadow: 0 4px 20px -3px rgba(0,0,0,0.05);">
+            <div style="padding: 18px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="font-weight: 900; font-size: 15px; color: #0f172a; margin: 0;">دفتر کل مالی و تاریخچه پرداخت‌های کاربران (Transactions Ledger)</h3>
+                    <p style="font-size: 12px; color: #94a3b8; margin: 2px 0 0 0;">ثبت دقیق شارژهای کیف پول و کسر هزینه‌های ساعتی مصرف</p>
+                </div>
+            </div>
+            
+            <div style="overflow-x: auto;">
+                <table class="wp-list-table widefat fixed striped table-view-list" style="border: none; margin: 0;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th style="font-weight: 900; width: 60px; color: #475569;">شناسه</th>
+                            <th style="font-weight: 900; width: 140px; color: #475569;">کاربر</th>
+                            <th style="font-weight: 900; width: 130px; color: #475569;">مبلغ تراکنش</th>
+                            <th style="font-weight: 900; width: 110px; color: #475569;">نوع عملیات</th>
+                            <th style="font-weight: 900; color: #475569;">شرح تراکنش</th>
+                            <th style="font-weight: 900; width: 100px; color: #475569;">وضعیت</th>
+                            <th style="font-weight: 900; width: 160px; color: #475569;">تاریخ و زمان</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($transactions)): ?>
+                            <tr><td colspan="7" style="text-align: center; padding: 30px; color: #94a3b8; font-size: 13px;">هنوز تراکنشی در سیستم ثبت نشده است.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($transactions as $tx): 
+                                $u_info = get_userdata($tx->user_id);
+                                $u_name = $u_info ? $u_info->user_login : 'Guest';
+                            ?>
+                                <tr>
+                                    <td><strong>#<?php echo esc_html($tx->id); ?></strong></td>
+                                    <td><?php echo esc_html($u_name); ?> <span style="font-size: 11px; color: #94a3b8;">(ID: <?php echo esc_html($tx->user_id); ?>)</span></td>
+                                    <td>
+                                        <?php if ($tx->amount >= 0): ?>
+                                            <strong style="color: #10b981; font-size: 13px;">+<?php echo number_format($tx->amount); ?></strong>
+                                        <?php else: ?>
+                                            <strong style="color: #e11d48; font-size: 13px;"><?php echo number_format($tx->amount); ?></strong>
+                                        <?php endif; ?>
+                                        <span style="font-size: 11px; color: #64748b;">تومان</span>
+                                    </td>
+                                    <td>
+                                        <?php if ($tx->type === 'charge'): ?>
+                                            <span style="background: #ecfdf5; color: #065f46; padding: 2px 8px; border-radius: 6px; font-weight: 800; font-size: 11px;">💳 شارژ حساب</span>
+                                        <?php elseif ($tx->type === 'usage_deduction'): ?>
+                                            <span style="background: #fef2f2; color: #991b1b; padding: 2px 8px; border-radius: 6px; font-weight: 800; font-size: 11px;">⚡ کسر مصرف</span>
+                                        <?php else: ?>
+                                            <?php echo esc_html($tx->type); ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="color: #334155; font-size: 12px;"><?php echo esc_html($tx->description); ?></td>
+                                    <td>
+                                        <span style="background: #ecfdf5; color: #065f46; padding: 2px 8px; border-radius: 9999px; font-weight: 800; font-size: 10px;">
+                                            موفق
+                                        </span>
+                                    </td>
+                                    <td style="font-size: 11px; color: #64748b;"><?php echo esc_html($tx->created_at); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
     <?php
 }
+
 
 
 

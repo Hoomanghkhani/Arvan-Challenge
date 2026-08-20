@@ -21,6 +21,8 @@ const ArvanStore = {
 
         const myServices = ref([]);
         const loadingServices = ref(false);
+        const transactions = ref([]);
+        const loadingTransactions = ref(false);
 
         // Sorkhab Product Catalog
         const regions = [
@@ -96,6 +98,7 @@ const ArvanStore = {
                 if (isLoggedIn.value) {
                     fetchBalance();
                     fetchUserServices();
+                    fetchTransactions();
                 }
             }
         });
@@ -104,6 +107,9 @@ const ArvanStore = {
             view.value = newView;
             if (newView === 'my_services' && isLoggedIn.value) {
                 fetchUserServices();
+            } else if (newView === 'wallet' && isLoggedIn.value) {
+                fetchBalance();
+                fetchTransactions();
             }
         };
 
@@ -122,6 +128,22 @@ const ArvanStore = {
             } catch (e) {
                 console.error('Failed to fetch balance', e);
             }
+        };
+
+        const fetchTransactions = async () => {
+            loadingTransactions.value = true;
+            try {
+                const res = await fetch(`${arvanStoreData.rest_url}/wallet/transactions`, {
+                    headers: { 'X-WP-Nonce': arvanStoreData.nonce }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    transactions.value = data.transactions;
+                }
+            } catch (e) {
+                console.error('Failed to fetch transactions', e);
+            }
+            loadingTransactions.value = false;
         };
 
         const fetchUserServices = async () => {
@@ -184,6 +206,7 @@ const ArvanStore = {
                     showToast(data.message, 'success');
                     customAmount.value = '';
                     fetchBalance();
+                    fetchTransactions();
                 } else {
                     showToast(data.message || 'خطا در شارژ کیف پول', 'error');
                 }
@@ -267,6 +290,7 @@ const ArvanStore = {
                     showToast(`سرویس با موفقیت ایجاد شد! شناسه منبع: ${data.resource_id} (IP: ${data.assigned_ip})`, 'success');
                     fetchBalance();
                     fetchUserServices();
+                    fetchTransactions();
                     view.value = 'my_services';
                 } else {
                     showToast(data.message || 'خطا در ثبت و راه‌اندازی منبع', 'error');
@@ -325,7 +349,8 @@ const ArvanStore = {
             serverConfig, cdnConfig, storageConfig,
             serverHourlyPrice, cdnHourlyPrice, storageHourlyPrice, getCurrentHourlyPrice,
             chargeWallet, submitOrder,
-            myServices, filteredServices, loadingServices, fetchUserServices, confirmAction, executeModalAction
+            myServices, filteredServices, loadingServices, fetchUserServices, confirmAction, executeModalAction,
+            transactions, loadingTransactions, fetchTransactions
         };
     },
     template: `
@@ -433,7 +458,7 @@ const ArvanStore = {
                                 :class="view==='wallet' ? 'bg-white text-[#FF0066] shadow-sm font-black ring-1 ring-pink-200' : 'text-slate-600 hover:text-slate-900 font-medium'" 
                                 class="flex-shrink-0 whitespace-nowrap py-2.5 px-3.5 sm:px-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
                             <span>💳</span>
-                            <span>کیف پول</span>
+                            <span>کیف پول و تراکنش‌ها</span>
                         </button>
                         <button @click="setView('my_services')" 
                                 :class="view==='my_services' ? 'bg-gradient-to-r from-[#FF0066] to-[#7928CA] text-white shadow-md font-black' : 'text-slate-600 hover:text-slate-900 font-medium'" 
@@ -658,7 +683,7 @@ const ArvanStore = {
                         </div>
                     </div>
 
-                    <!-- TAB 4: WALLET -->
+                    <!-- TAB 4: WALLET & TRANSACTIONS LEDGER -->
                     <div v-if="view === 'wallet'" class="space-y-4 sm:space-y-6">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div class="bg-white p-4 sm:p-5 rounded-2xl border border-pink-100 shadow-sm border-r-4 border-r-[#FF0066]">
@@ -677,6 +702,7 @@ const ArvanStore = {
                             </div>
                         </div>
 
+                        <!-- Charge Box -->
                         <div class="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
                             <h3 class="text-xs sm:text-sm font-black text-slate-900 mb-3">شارژ سریع کیف پول:</h3>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
@@ -697,6 +723,45 @@ const ArvanStore = {
                                 <span v-if="loading">در حال اتصال...</span>
                                 <span v-else>💳 پرداخت و شارژ آنلاین</span>
                             </button>
+                        </div>
+
+                        <!-- Customer Transactions History Table -->
+                        <div class="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900">تاریخچه تراکنش‌ها و ریزمصرف (Transactions Ledger)</h3>
+                                <button @click="fetchTransactions" class="text-xs text-[#FF0066] font-bold">🔄 بروزرسانی</button>
+                            </div>
+                            
+                            <div v-if="transactions.length === 0" class="text-center py-8 text-xs text-slate-400">
+                                هنوز هیچ تراکنشی ثبت نشده است.
+                            </div>
+                            <div v-else class="overflow-x-auto">
+                                <table class="w-full text-xs text-right">
+                                    <thead>
+                                        <tr class="border-b border-slate-100 text-slate-400 font-bold">
+                                            <th class="py-2.5 px-3">شناسه</th>
+                                            <th class="py-2.5 px-3">مبلغ</th>
+                                            <th class="py-2.5 px-3">نوع</th>
+                                            <th class="py-2.5 px-3">شرح</th>
+                                            <th class="py-2.5 px-3">تاریخ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        <tr v-for="t in transactions" :key="t.id">
+                                            <td class="py-2.5 px-3 font-mono text-slate-500">#{{ t.id }}</td>
+                                            <td class="py-2.5 px-3 font-black" :class="parseFloat(t.amount) >= 0 ? 'text-emerald-600' : 'text-rose-600'">
+                                                {{ parseFloat(t.amount) >= 0 ? '+' : '' }}{{ parseFloat(t.amount).toLocaleString() }} ت
+                                            </td>
+                                            <td class="py-2.5 px-3">
+                                                <span v-if="t.type === 'charge'" class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">شارژ</span>
+                                                <span v-else class="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-[10px] font-bold">کسر مصرف</span>
+                                            </td>
+                                            <td class="py-2.5 px-3 text-slate-600">{{ t.description }}</td>
+                                            <td class="py-2.5 px-3 font-mono text-[10px] text-slate-400" dir="ltr">{{ t.created_at }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
